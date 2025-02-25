@@ -1,0 +1,51 @@
+# Python bytecode, 캐시 파일들
+__pycache__/
+*.py[cod]
+*$py.class
+
+# 배포 및 빌드 관련 파일
+build/
+dist/
+*.egg-info/
+
+# 가상환경 (venv, .env 등)
+.env
+.venv
+env/
+venv/
+
+# 설치 로그 파일
+pip-log.txt
+pip-delete-this-directory.txt
+
+# 테스트 및 커버리지 관련 파일
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+*.cover
+*.py,cover
+nosetests.xml
+coverage.xml
+
+# Jupyter Notebook 체크포인트
+.ipynb_checkpoints/
+
+# 에디터/IDE 관련 폴더
+.vscode/
+.idea/
+
+# MacOS 생성 파일
+.DS_Store
+
+# 데이터 파일 (원본 및 전처리된 데이터는 버전 관리를 피하는 것이 좋습니다)
+data/raw/
+data/processed/
+
+# 모델 체크포인트 및 저장된 모델
+models/saved/
+runs/
+
+# 로그 파일
+*.log
