@@ -1,14 +1,15 @@
 import os
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from tokenizers import ByteLevelBPETokenizer
+from tokenizers import SentencePieceBPETokenizer
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from models.gpt1 import GPT1
+from models.llm import LLM
 
 
 class TextDataset(Dataset):
@@ -33,7 +34,6 @@ class TextDataset(Dataset):
         target_seq = torch.tensor(tokens_chunk[1:], dtype=torch.long)
         return input_seq, target_seq
 
-
 def main():
     checkpoint_dir = "models/saved"
     os.makedirs(checkpoint_dir, exist_ok=True)
@@ -53,42 +53,37 @@ def main():
     with open(train_file, "r", encoding="utf-8") as f:
         data_iterator = iter(f)
 
-        tokenizer = ByteLevelBPETokenizer()
+        tokenizer = SentencePieceBPETokenizer()
         tokenizer.train_from_iterator(
             data_iterator,
-            vocab_size=50257,  # GPT-1 typically uses a vocab size of 50,257
+            vocab_size=36000,
             min_frequency=2,
             special_tokens=["<unk>", "<s>", "</s>", "<pad>", "<mask>"]
         )
 
-        tokenizer_dir = os.path.join(checkpoint_dir, "tokenizer")
-
-        os.makedirs(tokenizer_dir, exist_ok=True)
-        tokenizer.save_model(tokenizer_dir)
+        tokenizer_path = os.path.join(checkpoint_dir, "tokenizer.json")
+        tokenizer.save(tokenizer_path)
 
     # Load the datasets
     train_dataset = TextDataset(train_file, tokenizer, seq_length=128)
     val_dataset = TextDataset(val_file, tokenizer, seq_length=128)
     test_dataset = TextDataset(test_file, tokenizer, seq_length=128)
-    train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=True)
-    val_dataloader = DataLoader(val_dataset, batch_size=32, shuffle=False)
-    test_dataloader = DataLoader(test_dataset, batch_size=32, shuffle=False)
 
-    # Model configuration for GPT-1
-    vocab_size = 50257  # GPT-1 uses 50,257 tokens
-    embed_dim = 768  # GPT-1 uses 768 for the embedding size
-    num_layers = 12  # GPT-1 has 12 layers
-    num_heads = 12  # GPT-1 has 12 attention heads
-    model = GPT1(vocab_size, embed_dim, num_layers, num_heads, dropout=0.1, max_seq_length=512)  # Max seq length is 512
+    train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=True, pin_memory=True)
+    val_dataloader = DataLoader(val_dataset, batch_size=32, shuffle=False, pin_memory=True)
+    test_dataloader = DataLoader(test_dataset, batch_size=32, shuffle=False, pin_memory=True)
+
+    vocab_size = tokenizer.get_vocab_size()
+    embed_dim = 512
+    num_layers = 16
+    num_heads = 16
+    model = LLM(vocab_size, embed_dim, num_layers, num_heads, max_seq_length=512, dropout=0.1)
     device = torch.device("mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
 
     # Optimizer and loss function
-    optimizer = optim.Adam(model.parameters(), lr=1e-3)
-    criterion = nn.CrossEntropyLoss()
-
-    # Resume from checkpoint if it exists
-    start_epoch = 0
+    optimizer = optim.AdamW(model.parameters(), lr=1e-3)
+    criterion = nn.CrossEntropyLoss(ignore_index=tokenizer.token_to_id("<pad>"))
 
     # Resume from the most recent checkpoint in the checkpoint directory
     checkpoint_files = [f for f in os.listdir(checkpoint_dir) if f.endswith('.pth')]
@@ -107,7 +102,7 @@ def main():
         start_epoch = 0
         print("No checkpoint found, starting training from scratch.")
 
-    writer = SummaryWriter(log_dir='runs/gpt1_experiment')
+    writer = SummaryWriter(log_dir='runs/experiment')
 
     # Add the model graph to TensorBoard
     dummy_input = torch.randint(0, vocab_size, (1, 128)).to(device)

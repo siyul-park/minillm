@@ -1,15 +1,15 @@
 import os
 import torch
 import torch.nn.functional as F
-from models.gpt1 import GPT1
-from tokenizers import ByteLevelBPETokenizer
+from models.llm import LLM
+from tokenizers import Tokenizer
 
 
 def load_model(model_path, vocab_size, embed_dim, num_layers, num_heads, device):
     """
     Loads the trained model from the checkpoint path.
     """
-    model = GPT1(vocab_size, embed_dim, num_layers, num_heads, dropout=0.1, max_seq_length=512)
+    model = LLM(vocab_size, embed_dim, num_layers, num_heads, max_seq_length=512, dropout=0.1)
     checkpoint = torch.load(model_path, map_location=device)  # Ensure it's loaded on the correct device
     model.load_state_dict(checkpoint['model_state_dict'])
     model.to(device)
@@ -21,11 +21,7 @@ def load_tokenizer(tokenizer_path):
     """
     Loads the tokenizer from the saved tokenizer file.
     """
-    tokenizer = ByteLevelBPETokenizer().from_file(
-        vocab_filename=os.path.join(tokenizer_path, "vocab.json"),
-        merges_filename=os.path.join(tokenizer_path, "merges.txt")
-    )
-    return tokenizer
+    return Tokenizer.from_file(tokenizer_path)
 
 
 def generate_text(model, tokenizer, prompt, max_length=128, temperature=1.0, top_k=50, device='cpu'):
@@ -127,20 +123,17 @@ def get_latest_model_path(checkpoint_dir):
 def main():
     # Paths to the model and tokenizer
     checkpoint_dir = "models/saved"
-    val_file = "data/raw/valid.txt"
-    tokenizer_dir = os.path.join(checkpoint_dir, "tokenizer")
-
-    # Model configuration
-    vocab_size = 50257  # GPT-1 uses 50,257 tokens
-    embed_dim = 768  # GPT-1 uses 768 for the embedding size
-    num_layers = 12  # GPT-1 has 12 layers
-    num_heads = 12  # GPT-1 has 12 attention heads
-
-    device = torch.device(
-        "mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu")
+    tokenizer_path = os.path.join(checkpoint_dir, "tokenizer.json")
 
     # Load tokenizer
-    tokenizer = load_tokenizer(tokenizer_dir)
+    tokenizer = load_tokenizer(tokenizer_path)
+
+    # Model configuration
+    vocab_size = tokenizer.get_vocab_size()
+    embed_dim = 512
+    num_layers = 16
+    num_heads = 16
+    device = torch.device("mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu")
 
     # Get the latest model checkpoint
     model_path = get_latest_model_path(checkpoint_dir)
