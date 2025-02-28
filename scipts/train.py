@@ -11,7 +11,6 @@ from tqdm import tqdm
 
 from models.llm import LLM
 
-
 class TextDataset(Dataset):
     def __init__(self, file_path, tokenizer, seq_length=128):
         self.file_path = file_path
@@ -20,9 +19,10 @@ class TextDataset(Dataset):
         with open(self.file_path, "r", encoding="utf-8") as f:
             text = f.read()
         self.tokens = self.tokenizer.encode(text).ids
+        self.pad_token_id = self.tokenizer.token_to_id("<pad>")
 
     def __len__(self):
-        return (len(self.tokens) - self.seq_length) // self.seq_length
+        return (len(self.tokens) - 1) // self.seq_length
 
     def __getitem__(self, idx):
         start_idx = idx * self.seq_length
@@ -30,9 +30,16 @@ class TextDataset(Dataset):
 
         tokens_chunk = self.tokens[start_idx:end_idx]
 
-        input_seq = torch.tensor(tokens_chunk[:-1], dtype=torch.long)
-        target_seq = torch.tensor(tokens_chunk[1:], dtype=torch.long)
-        return input_seq, target_seq
+        input_seq = self._add_padding(tokens_chunk[:-1])
+        target_seq = self._add_padding(tokens_chunk[1:])
+
+        return torch.tensor(input_seq, dtype=torch.long), torch.tensor(target_seq, dtype=torch.long)
+
+    def _add_padding(self, seq):
+        padding_length = self.seq_length - len(seq)
+        if padding_length > 0:
+            seq = seq + [self.pad_token_id] * padding_length
+        return seq
 
 def main():
     checkpoint_dir = "models/saved"
@@ -69,7 +76,7 @@ def main():
     val_dataset = TextDataset(val_file, tokenizer, seq_length=128)
     test_dataset = TextDataset(test_file, tokenizer, seq_length=128)
 
-    train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=True, pin_memory=True)
+    train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=True)
     val_dataloader = DataLoader(val_dataset, batch_size=32, shuffle=False, pin_memory=True)
     test_dataloader = DataLoader(test_dataset, batch_size=32, shuffle=False, pin_memory=True)
 

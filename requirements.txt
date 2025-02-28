@@ -33,7 +33,7 @@ python-dateutil==2.9.0.post0
 pytz==2025.1
 PyYAML==6.0.2
 requests==2.32.3
-setuptools==68.2.0
+setuptools==70.0.0
 six==1.17.0
 sympy==1.13.1
 tensorboard==2.19.0
